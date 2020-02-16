@@ -1,5 +1,14 @@
+// TODOS:
+// 
+// 1. Allow credentials/authentication to be handled cleanly by the serviceWorker
+// 2. Allow caching of pages that may change (1 way would be to change the serviceWorker and delete old caches on activate)
+// 3. 
+
+
+
 //var CACHE_NAME = 'site-cache-v1';
-var CACHE_NAME = 'pages-cache-v1';
+var PRECACHE = 'pages-cache-v1';
+var RUNTIME = "runtime";
 var urlsToCache = [
     '/index.html',
     '/styles/main.css',
@@ -7,11 +16,11 @@ var urlsToCache = [
 ];
 
 // Installation of the serviceWorker (cache urls above)
-self.addEventListener('install', function(event) {
+self.addEventListener('install', event => {
     // open cache, cache files, and confirm
     event.waitUntil(
-        caches.open(CACHE_NAME)
-            .then( function(cache) {
+        caches.open(PRECACHE)
+            .then( cache => {
                 console.log('Opened Cache.');
                 return cache.addAll(urlsToCache);
             })
@@ -19,33 +28,39 @@ self.addEventListener('install', function(event) {
 });
 
 // Fetch handler (only predefined list is cached 'urlsToCache')
-self.addEventListener('fetch', function(event) {
+self.addEventListener('fetch', event => {
     event.respondWith(
         caches.match(event.request) 
-            .then(function(response) {
-                // cache hit - return response
-                if (response) {
-                    return response;
+            .then(cachedResponse => {
+                // cache hit on PRECACHE - return cachedResponse
+                if (cachedResponse) {
+                    return cachedResponse;
                 }
-                return fetch(event.request);
+
+                // if cache miss - put the request in the RUNTIME cache
+                return caches.open(RUNTIME).then( cache => {
+                    return fetch(event.request).then( response => {
+                        return cache.put(event.request, response.clone()).then( () => {
+                            return response;
+                        });
+                    });
+                });
             })
     );
 });
 
 // Activate handler to capture changes to the serviceWorker
 self.addEventListener('activate', function(event) {
-    var cacheWhitelist = ['pages-cache-v1'];
+    const current_caches = [PRECACHE, RUNTIME];
 
-    // remove old caches for the change
+    // clear caches on activate
     event.waitUntil(
-        caches.keys().then(function(cacheNames) {
-            return Promise.all(
-                cacheNames.map(function(cacheName) {
-                    if (cacheWhitelist.indexOf(cacheName) === -1) {
-                        return caches.delete(cacheName);
-                    }
-                })
-            );
-        })
+        caches.keys().then( cacheNames => {
+           return cacheNames.filter( cacheName => !current_caches.includes(cacheName));
+        }).then( cachesToDelete => {
+            return Promise.all(cachesToDelete.map(cacheToDelete => {
+                return caches.delete(cacheToDelete);
+            }));
+        }).then( () => self.clients.claim() )
     );
 });
