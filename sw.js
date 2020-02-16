@@ -1,4 +1,5 @@
-var CACHE_NAME = 'site-cache-v1';
+//var CACHE_NAME = 'site-cache-v1';
+var CACHE_NAME = 'pages-cache-v1';
 var urlsToCache = [
     '/index.html',
     '/styles/main.css',
@@ -17,7 +18,7 @@ self.addEventListener('install', function(event) {
     );
 });
 
-// Fetch handler
+// Fetch handler (only predefined list is cached 'urlsToCache')
 self.addEventListener('fetch', function(event) {
     event.respondWith(
         caches.match(event.request) 
@@ -31,3 +32,20 @@ self.addEventListener('fetch', function(event) {
     );
 });
 
+// Activate handler to capture changes to the serviceWorker
+self.addEventListener('activate', function(event) {
+    var cacheWhitelist = ['pages-cache-v1'];
+
+    // remove old caches for the change
+    event.waitUntil(
+        caches.keys().then(function(cacheNames) {
+            return Promise.all(
+                cacheNames.map(function(cacheName) {
+                    if (cacheWhitelist.indexOf(cacheName) === -1) {
+                        return caches.delete(cacheName);
+                    }
+                })
+            );
+        })
+    );
+});
